@@ -1,0 +1,133 @@
+/* Reset & base */
+* { box-sizing: border-box; margin:0; padding:0; }
+body {
+    font-family: Arial, sans-serif;
+    background: #f0f2f5;
+    color: #333;
+    line-height: 1.5;
+}
+.dashboard {
+    display: grid;
+    grid-template-rows: auto auto auto auto auto;
+    grid-row-gap: 25px;
+    padding: 20px;
+}
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.header-text h1 {
+    font-size: 30px;
+    margin-bottom: 4px;
+}
+.header-text .subtitle {
+    font-size: 16px;
+    color: #666;
+}
+.filters select {
+    margin-left: 10px;
+    padding: 6px 10px;
+    font-size: 14px;
+}
+
+/* KPI cards */
+.kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
+    gap: 20px;
+}
+.kpi-card {
+    background: #fff;
+    padding: 20px;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    text-align: center;
+}
+.kpi-card h3 {
+    font-size: 16px;
+    color: #555;
+    margin-bottom: 8px;
+}
+.kpi-value {
+    font-size: 26px;
+    font-weight: bold;
+}
+
+/* Charts */
+.charts-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px,1fr));
+    gap: 20px;
+}
+.chart-container {
+    background: #fff;
+    padding: 20px;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.chart-container h4 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    text-align: center;
+}
+.top-products {
+    background: #fff;
+    padding: 20px;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.top-products h4 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+/* Table */
+.data-table-section {
+    background: #fff;
+    padding: 20px;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.table-wrapper {
+    overflow-x: auto;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+thead th {
+    text-align: left;
+    padding: 10px;
+    background: #f7f7f7;
+    position: sticky;
+    top: 0;
+}
+tbody td {
+    padding: 8px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+/* Misc */
+select {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+}
+
+@media (max-width: 600px) {
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .filters {
+        width: 100%;
+    }
+}

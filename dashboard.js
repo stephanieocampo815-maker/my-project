@@ -1,6 +1,8 @@
 let rawData = [];
 let charts = {};
 let selectedMonth = 'all';
+let selectedCategory = 'all';
+let selectedSize = 'all';
 
 // Configure Chart.js
 Chart.defaults.color = '#8bb3ff';
@@ -50,6 +52,8 @@ Papa.parse("coffee_shop_data.csv", {
       return r;
     });
     populateMonthButtons();
+    populateCategoryButtons();
+    populateSizeButtons();
     setupEventListeners();
     setLastUpdated();
     updateDashboard();
@@ -97,15 +101,98 @@ function populateMonthButtons() {
   });
 }
 
+function populateCategoryButtons() {
+  const container = document.getElementById('categoryButtons');
+  if (!container) return;
+  
+  const categories = new Set();
+  rawData.forEach(r => {
+    categories.add(r.Category);
+  });
+  
+  // Add "All" categories button
+  const allBtn = document.createElement('button');
+  allBtn.className = 'filter-btn active';
+  allBtn.textContent = 'All';
+  allBtn.dataset.category = 'all';
+  allBtn.addEventListener('click', function() {
+    selectCategory(this);
+  });
+  container.appendChild(allBtn);
+  
+  // Add individual category buttons
+  Array.from(categories).sort().forEach(category => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.textContent = category;
+    btn.dataset.category = category;
+    btn.addEventListener('click', function() {
+      selectCategory(this);
+    });
+    container.appendChild(btn);
+  });
+}
+
+function populateSizeButtons() {
+  const container = document.getElementById('sizeButtons');
+  if (!container) return;
+  
+  const sizes = new Set();
+  rawData.forEach(r => {
+    if (r.Size) sizes.add(r.Size);
+  });
+  
+  // Add "All" sizes button
+  const allBtn = document.createElement('button');
+  allBtn.className = 'filter-btn active';
+  allBtn.textContent = 'All';
+  allBtn.dataset.size = 'all';
+  allBtn.addEventListener('click', function() {
+    selectSize(this);
+  });
+  container.appendChild(allBtn);
+  
+  // Add individual size buttons
+  Array.from(sizes).sort().forEach(size => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn';
+    btn.textContent = size;
+    btn.dataset.size = size;
+    btn.addEventListener('click', function() {
+      selectSize(this);
+    });
+    container.appendChild(btn);
+  });
+}
+
 function selectMonth(btn) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#monthButtons .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   selectedMonth = btn.dataset.month;
   updateDashboard();
 }
 
+function selectCategory(btn) {
+  document.querySelectorAll('#categoryButtons .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedCategory = btn.dataset.category;
+  updateDashboard();
+}
+
+function selectSize(btn) {
+  document.querySelectorAll('#sizeButtons .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedSize = btn.dataset.size;
+  updateDashboard();
+}
+
 function setupEventListeners() {
   setLastUpdated();
+  // Add search functionality
+  const searchInput = document.getElementById('dataSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', updateDataTable);
+  }
 }
 
 function setLastUpdated() {
@@ -117,21 +204,31 @@ function setLastUpdated() {
 }
 
 function getFilteredData() {
-  if (selectedMonth === 'all') {
-    return rawData;
+  let data = rawData;
+  
+  if (selectedMonth !== 'all') {
+    data = data.filter(r => {
+      const date = new Date(r.Date);
+      return (date.getMonth() + 1).toString() === selectedMonth.toString();
+    });
   }
   
-  return rawData.filter(r => {
-    const date = new Date(r.Date);
-    return (date.getMonth() + 1).toString() === selectedMonth.toString();
-  });
+  if (selectedCategory !== 'all') {
+    data = data.filter(r => r.Category === selectedCategory);
+  }
+  
+  if (selectedSize !== 'all') {
+    data = data.filter(r => r.Size === selectedSize);
+  }
+  
+  return data;
 }
 
 function updateDashboard() {
   const data = getFilteredData();
   updateKPIs(data);
   updateCharts(data);
-  updateRevenueBar(data);
+  updateDataTable();
 }
 
 function updateKPIs(data) {
@@ -144,34 +241,37 @@ function updateKPIs(data) {
 
   const fmt = (v) => {
     const num = Math.round(v);
-    return '$' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return '₱' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
+
+  const fmtPercent = (v) => v.toFixed(1) + '%';
 
   document.getElementById('kpiTransactions').innerText = transactions.toLocaleString();
   document.getElementById('kpiQty').innerText = totalQty.toLocaleString();
   document.getElementById('kpiRevenue').innerText = fmt(totalRevenue);
+  document.getElementById('kpiCost').innerText = fmt(totalCost);
   document.getElementById('kpiProfit').innerText = fmt(netProfit);
-  document.getElementById('kpiMargin').innerText = profitMargin.toFixed(1) + '%';
+  document.getElementById('kpiMargin').innerText = fmtPercent(profitMargin);
 }
 
 
 function updateCharts(data) {
-  // Group by category for transactions
-  const catTransactions = {};
+  // Chart 1: Sales by Product Category (Bar Chart)
+  const salesByCategory = {};
   data.forEach(r => {
     const cat = r.Category;
-    catTransactions[cat] = (catTransactions[cat] || 0) + 1;
+    salesByCategory[cat] = (salesByCategory[cat] || 0) + Number(r["Total Revenue"] || 0);
   });
 
-  // Chart 1: Category Transactions
-  if (charts.categoryTrans) charts.categoryTrans.destroy();
-  const ctx1 = document.getElementById('categoryTransChart').getContext('2d');
-  charts.categoryTrans = new Chart(ctx1, {
+  if (charts.salesByCategory) charts.salesByCategory.destroy();
+  const ctx1 = document.getElementById('salesByCategoryChart').getContext('2d');
+  charts.salesByCategory = new Chart(ctx1, {
     type: 'bar',
     data: {
-      labels: Object.keys(catTransactions),
+      labels: Object.keys(salesByCategory),
       datasets: [{
-        data: Object.values(catTransactions),
+        label: 'Total Revenue',
+        data: Object.values(salesByCategory),
         backgroundColor: '#4a9eff',
         borderColor: '#2a7abf',
         borderWidth: 1
@@ -180,62 +280,81 @@ function updateCharts(data) {
     options: {
       responsive: true,
       plugins: { legend: { display: false } },
-      indexAxis: 'y',
-      scales: { x: { beginAtZero: true } }
+      scales: { 
+        y: { 
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return '₱' + value.toLocaleString();
+            }
+          }
+        }
+      }
     }
   });
 
-  // Chart 2: Weekday transactions
-  const weekdayMap = { 0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat' };
-  const weekdayTrans = { Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 };
+  // Chart 2: Sales Trend Over Time (Line Chart)
+  const salesTrend = {};
   data.forEach(r => {
     const date = new Date(r.Date);
-    const dayName = weekdayMap[date.getDay()];
-    weekdayTrans[dayName]++;
+    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    salesTrend[dateKey] = (salesTrend[dateKey] || 0) + Number(r["Total Revenue"] || 0);
   });
 
-  if (charts.weekday) charts.weekday.destroy();
-  const ctx2 = document.getElementById('weekdayChart').getContext('2d');
-  charts.weekday = new Chart(ctx2, {
+  const sortedDates = Object.keys(salesTrend).sort();
+  const trendData = sortedDates.map(date => salesTrend[date]);
+
+  if (charts.salesTrend) charts.salesTrend.destroy();
+  const ctx2 = document.getElementById('salesTrendChart').getContext('2d');
+  charts.salesTrend = new Chart(ctx2, {
     type: 'line',
     data: {
-      labels: Object.keys(weekdayTrans),
+      labels: sortedDates,
       datasets: [{
-        label: 'Transactions',
-        data: Object.values(weekdayTrans),
+        label: 'Total Sales',
+        data: trendData,
         borderColor: '#4ad96f',
         backgroundColor: 'rgba(74, 217, 111, 0.1)',
         fill: true,
         tension: 0.4,
         pointBackgroundColor: '#4ad96f',
-        pointRadius: 5
+        pointRadius: 3
       }]
     },
     options: {
       responsive: true,
       plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } }
+      scales: { 
+        y: { 
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return '₱' + value.toLocaleString();
+            }
+          }
+        }
+      }
     }
   });
 
-  // Chart 3: Monthly revenue
-  const monthlyRev = {};
+  // Chart 3: Profit by Product Category (Bar Chart)
+  const profitByCategory = {};
   data.forEach(r => {
-    const date = new Date(r.Date);
-    const monthKey = getMonthName(date.getMonth() + 1);
-    monthlyRev[monthKey] = (monthlyRev[monthKey] || 0) + Number(r["Total Revenue"] || 0);
+    const cat = r.Category;
+    const profit = Number(r["Total Revenue"] || 0) - Number(r["Total Cost"] || 0);
+    profitByCategory[cat] = (profitByCategory[cat] || 0) + profit;
   });
 
-  if (charts.monthly) charts.monthly.destroy();
-  const ctx3 = document.getElementById('monthlyChart').getContext('2d');
-  charts.monthly = new Chart(ctx3, {
+  if (charts.profitByCategory) charts.profitByCategory.destroy();
+  const ctx3 = document.getElementById('profitByCategoryChart').getContext('2d');
+  charts.profitByCategory = new Chart(ctx3, {
     type: 'bar',
     data: {
-      labels: Object.keys(monthlyRev),
+      labels: Object.keys(profitByCategory),
       datasets: [{
-        label: 'Revenue',
-        data: Object.values(monthlyRev),
-        backgroundColor: '#6bb6ff',
+        label: 'Net Profit',
+        data: Object.values(profitByCategory),
+        backgroundColor: Object.values(profitByCategory).map(v => v >= 0 ? '#4ad96f' : '#ff6b6b'),
         borderColor: '#2a7abf',
         borderWidth: 1
       }]
@@ -243,28 +362,35 @@ function updateCharts(data) {
     options: {
       responsive: true,
       plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } }
+      scales: { 
+        y: { 
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return '₱' + value.toLocaleString();
+            }
+          }
+        }
+      }
     }
   });
 
-  // Chart 4: Revenue distribution
-  const catRevenue = {};
-  data.forEach(r => {
-    const cat = r.Category;
-    catRevenue[cat] = (catRevenue[cat] || 0) + Number(r["Total Revenue"] || 0);
-  });
+  // Chart 4: Cost Breakdown (Pie Chart)
+  const costBreakdown = {
+    'Cost of Goods Sold': data.reduce((s, r) => s + Number(r["COGS"] || 0), 0),
+    'Operating Expenses': data.reduce((s, r) => s + Number(r["Operating Expenses"] || 0), 0),
+    'Marketing Expenses': data.reduce((s, r) => s + Number(r["Marketing Expenses"] || 0), 0)
+  };
 
-  const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9a825', '#6c5ce7', '#00b894', '#fd79a8', '#fdcb6e', '#6c7a89', '#a29bfe'];
-
-  if (charts.distribution) charts.distribution.destroy();
-  const ctx4 = document.getElementById('revenueDistChart').getContext('2d');
-  charts.distribution = new Chart(ctx4, {
-    type: 'doughnut',
+  if (charts.costBreakdown) charts.costBreakdown.destroy();
+  const ctx4 = document.getElementById('costBreakdownChart').getContext('2d');
+  charts.costBreakdown = new Chart(ctx4, {
+    type: 'pie',
     data: {
-      labels: Object.keys(catRevenue),
+      labels: Object.keys(costBreakdown),
       datasets: [{
-        data: Object.values(catRevenue),
-        backgroundColor: colors.slice(0, Object.keys(catRevenue).length),
+        data: Object.values(costBreakdown),
+        backgroundColor: ['#ff6b6b', '#f9a825', '#6c5ce7'],
         borderColor: '#0e2a52',
         borderWidth: 2
       }]
@@ -276,32 +402,99 @@ function updateCharts(data) {
       }
     }
   });
-}
 
-function updateRevenueBar(data) {
-  const catRevenue = {};
+  // Chart 5: Top 10 Best Selling Products (Horizontal Bar Chart)
+  const productSales = {};
   data.forEach(r => {
-    const cat = r.Category;
-    catRevenue[cat] = (catRevenue[cat] || 0) + Number(r["Total Revenue"] || 0);
+    const product = r.Item;
+    productSales[product] = (productSales[product] || 0) + Number(r.Quantity || 0);
   });
 
-  const totalRevenue = Object.values(catRevenue).reduce((a, b) => a + b, 0);
-  const sorted = Object.entries(catRevenue).sort((a, b) => b[1] - a[1]);
+  const topProducts = Object.entries(productSales)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
 
-  const container = document.getElementById('revenueBars');
-  container.innerHTML = '';
+  if (charts.topProducts) charts.topProducts.destroy();
+  const ctx5 = document.getElementById('topProductsChart').getContext('2d');
+  charts.topProducts = new Chart(ctx5, {
+    type: 'bar',
+    data: {
+      labels: topProducts.map(p => p[0]),
+      datasets: [{
+        label: 'Units Sold',
+        data: topProducts.map(p => p[1]),
+        backgroundColor: '#6bb6ff',
+        borderColor: '#2a7abf',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      indexAxis: 'y',
+      scales: { 
+        x: { 
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return value.toLocaleString();
+            }
+          }
+        }
+      }
+    }
+  });
+}
 
-  sorted.forEach(([cat, rev]) => {
-    const percent = totalRevenue ? (rev / totalRevenue) * 100 : 0;
-    const item = document.createElement('div');
-    item.className = 'bar-item';
-    item.innerHTML = `
-      <div class="bar-label">${cat}</div>
-      <div class="bar-value">$${Math.round(rev).toLocaleString()}</div>
-      <div class="bar">
-        <div class="bar-fill" style="width: ${percent}%"></div>
-      </div>
+function updateDataTable() {
+  const data = getFilteredData();
+  const searchTerm = document.getElementById('dataSearch').value.toLowerCase();
+  
+  // Group data by product
+  const productData = {};
+  data.forEach(r => {
+    const product = r.Item;
+    if (!productData[product]) {
+      productData[product] = {
+        product: product,
+        category: r.Category,
+        unitsSold: 0,
+        revenue: 0,
+        cost: 0,
+        profit: 0
+      };
+    }
+    productData[product].unitsSold += Number(r.Quantity || 0);
+    productData[product].revenue += Number(r["Total Revenue"] || 0);
+    productData[product].cost += Number(r["Total Cost"] || 0);
+    productData[product].profit += Number(r["Net Income"] || 0);
+  });
+  
+  // Convert to array and filter by search
+  let tableData = Object.values(productData);
+  if (searchTerm) {
+    tableData = tableData.filter(item => 
+      item.product.toLowerCase().includes(searchTerm) || 
+      item.category.toLowerCase().includes(searchTerm)
+    );
+  }
+  
+  // Sort by units sold descending
+  tableData.sort((a, b) => b.unitsSold - a.unitsSold);
+  
+  const tbody = document.getElementById('dataTableBody');
+  tbody.innerHTML = '';
+  
+  tableData.forEach(item => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${item.product}</td>
+      <td>${item.category}</td>
+      <td>${item.unitsSold.toLocaleString()}</td>
+      <td>₱${Math.round(item.revenue).toLocaleString()}</td>
+      <td>₱${Math.round(item.cost).toLocaleString()}</td>
+      <td>₱${Math.round(item.profit).toLocaleString()}</td>
     `;
-    container.appendChild(item);
+    tbody.appendChild(row);
   });
 }
